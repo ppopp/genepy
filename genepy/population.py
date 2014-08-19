@@ -109,7 +109,6 @@ def evolve(
         gene_properties,
         **kwargs)
 
-
     # crossover
     population, genepool = crossover(
         population, 
@@ -173,14 +172,11 @@ def mutate(
         'mutation_rate',
         1. / (size * numpy.sqrt(num_genes)))
 
-
-
     new_population = []
     new_genepool = {}
     num_mutations = 0
 
     _logger.info('mutating')
-
     for i, k in enumerate(population):
         new_genes = dict(genepool[k])
         mutate_genepool = [
@@ -253,40 +249,53 @@ def crossover(
 
     _logger.info('crossover') 
 
-    # do crossover
-    num_crossovers = 0
-    for i in xrange(0, size, 2):
-        k1 = population[i]
-        k2 = population[i+1]
-        genes1 = None
-        genes2 = None
-        if numpy.random.binomial(1, crossover_rate) == 1:
-            num_crossovers += 2
-            genes1, genes2 = cross(
-                genepool[k1], 
-                genepool[k2], 
-                gene_properties, 
-                **kwargs)
-            _logger.debug('mate: %u with %u' % (i, i+1))
-            _logger.debug('parents:')
-            _logger.debug(k1)
-            _logger.debug(k2)
-            _logger.debug('children:')
-            _logger.debug(gene_hash_function(genes1))
-            _logger.debug(gene_hash_function(genes2))
+    # choose which to mate and which to keep single
+    maters = []
+    for ind in population:
+        if numpy.random.binomial(1, crossover_rate):
+            maters.append(ind)
         else:
-            genes1 = dict(genepool[k1])
-            genes2 = dict(genepool[k2])
-        individual1 = gene_hash_function(genes1)
-        individual2 = gene_hash_function(genes2)
-        new_genepool[individual1] = genes1
-        new_genepool[individual2] = genes2
-        new_population.append(individual1)
-        new_population.append(individual2)
+            new_population.append(ind)
 
-    _logger.info('crossover rate: {}'.format(crossover_rate))
-    _logger.info('num crossovers: {} ({:.4f})'.format(
-        num_crossovers, float(num_crossovers)/size))
+    # handle odd number of maters
+    if (len(maters) % 2) != 0:
+        if numpy.random.binomial(1, 0.5) or (len(new_population) == 0):
+            # randomly remove one mater and add to new_population
+            pos = random.randint(0, len(maters) - 1)
+            new_population.append(maters[pos])
+            del maters[pos]
+        else:
+            # randomly remove on single and add to maters
+            pos = random.randint(0, len(new_population) - 1)
+            maters.append(new_population[pos])
+            del new_population[pos]
+
+    # add new_population to new_genepool
+    for ind in new_population:
+        new_genepool[ind] = dict(genepool[ind])
+
+    # mate and add children
+    random.shuffle(maters)
+    for i in xrange(0, len(maters), 2):
+        k1 = maters[i]
+        k2 = maters[i + 1]
+        genes1, genes2 = cross(
+            genepool[k1], 
+            genepool[k2], 
+            gene_properties, 
+            **kwargs)
+        ind1 = gene_hash_function(genes1)
+        ind2 = gene_hash_function(genes2)
+        new_genepool[ind1] = genes1
+        new_genepool[ind2] = genes2
+        new_population.append(ind1)
+        new_population.append(ind2)
+        _logger.debug('parents:\n\t{0}\n\t{1}'.format(k1, k2))
+        _logger.debug('children:\n\t{0}\n\t{1}'.format(ind1, ind2))
+
+    _logger.info('set crossover rate: {}'.format(crossover_rate))
+    _logger.info('actual crossover rate: {} ({:.4f})'.format(
+        len(maters), float(len(maters))/size))
 
     return new_population, new_genepool
 
