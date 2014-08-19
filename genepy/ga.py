@@ -36,9 +36,8 @@ def average(fitness, population=None):
 
 def best_ratio(fitness):
     best_fitness = fitness[best(fitness)]
-    worst_fitness = fitness[worst(fitness)]
     avg_fitness = average(fitness)
-    if avg_fitness > 0.0:
+    if avg_fitness != 0.0:
         return (best_fitness - avg_fitness) / avg_fitness
     return 1.0
 
@@ -52,9 +51,11 @@ def best_ratio_convergence(
 
     br = best_ratio(fitness)
     thresh = kwargs.get('best_ratio_thresh', 0.001)
+    _logger.debug(
+        'checking best ratio {0} with threshold {1}'.format(br, thresh))
     if br < thresh:
         previous_best_fitness = kwargs.get('previous_best_fitness', 0.0)
-        best_individual = fitness[best(fitness)]
+        best_individual = best(fitness)
         best_fitness = fitness[best_individual]
         if best_fitness >= previous_best_fitness:
             _logger.info(
@@ -73,6 +74,10 @@ def max_iteration_convergence(
     **kwargs):
 
     max_iterations = kwargs.get('max_iterations', 1000)
+    _logger.debug(
+        'checking iteration count {0} of {1}'.format(
+            iterations, 
+            max_iterations))
     if iterations >= max_iterations:
         result = best(fitness)
         _logger.info('converged due to max iteration {0} with result {1}'.format(
@@ -138,7 +143,7 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
 
         if result is None:
             _logger.debug('evolving next generation')
-            population.evolve(
+            individuals, genepool = population.evolve(
                 individuals,
                 genepool,
                 gene_properties,
