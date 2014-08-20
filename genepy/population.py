@@ -101,6 +101,8 @@ def evolve(
         genepool, 
         fitness, 
         **kwargs)
+    _logger.debug('population size {0} after select'.format(len(population)))
+    _logger.debug('genepool size {0} after select'.format(len(genepool)))
 
     # mutation
     population, genepool = mutate(
@@ -108,6 +110,8 @@ def evolve(
         genepool, 
         gene_properties,
         **kwargs)
+    _logger.debug('population size {0} after mutate'.format(len(population)))
+    _logger.debug('genepool size {0} after mutate'.format(len(genepool)))
 
     # crossover
     population, genepool = crossover(
@@ -115,6 +119,8 @@ def evolve(
         genepool, 
         gene_properties,
         **kwargs)
+    _logger.debug('population size {0} after crossover'.format(len(population)))
+    _logger.debug('genepool size {0} after crossover'.format(len(genepool)))
 
     # add copies of best genes from previous generation
     population, genepool = replace(
@@ -122,6 +128,8 @@ def evolve(
         genepool, 
         best_genes, 
         **kwargs)
+    _logger.debug('population size {0} after replace'.format(len(population)))
+    _logger.debug('genepool size {0} after replace'.format(len(genepool)))
 
     return population, genepool
 
@@ -149,7 +157,10 @@ def select(
         t2 in zip(
             team1,
             team2)]
-    new_genepool = {k: genepool[k] for k in set(new_population)}
+    new_genepool = {}
+    for k in set(new_population):
+        new_genepool[k] = genepool[k]
+
 
     return new_population, new_genepool, best_genes
 
@@ -202,8 +213,8 @@ def mutate(
         new_genepool[individual] = new_genes
         new_population.append(individual)
 
-    _logger.info('mutation rate: {}'.format(mutation_rate))
-    _logger.info('num mutations: {} ({:.4f})'.format(
+    _logger.info('mutation rate: {0}'.format(mutation_rate))
+    _logger.info('num mutations: {0} ({1:.4f})'.format(
         num_mutations, 
         float(num_mutations) / (size * num_genes)))
 
@@ -293,8 +304,8 @@ def crossover(
         _logger.debug('parents:\n\t{0}\n\t{1}'.format(k1, k2))
         _logger.debug('children:\n\t{0}\n\t{1}'.format(ind1, ind2))
 
-    _logger.info('set crossover rate: {}'.format(crossover_rate))
-    _logger.info('actual crossover rate: {} ({:.4f})'.format(
+    _logger.info('set crossover rate: {0}'.format(crossover_rate))
+    _logger.info('actual crossover rate: {0} ({1:.4f})'.format(
         len(maters), float(len(maters))/size))
 
     return new_population, new_genepool
@@ -318,16 +329,18 @@ def replace(
     new_population = list(population)
     best_individual = gene_hash_function(best_genes)
     for i in numpy.random.randint(0, size, size=num_replaces):
-        _logger.info('replace ind: {}'.format(i))
+        _logger.info('replace ind: {0}'.format(i))
         new_population[i] = best_individual
 
     new_genepool = dict(genepool)
     new_genepool[best_individual] = best_genes
 
     # remove replaced keys from new dict
-    new_genepool = {
-        k: v for k,
-        v in new_genepool.iteritems() if k in new_population}
+    new_population_set = set(new_population)
+    new_genepool2 = {}
+    for k, v in new_genepool.iteritems():
+        if k in new_population_set:
+            new_genepool2[k] = v
 
-    return new_population, new_genepool
+    return new_population, new_genepool2
 
