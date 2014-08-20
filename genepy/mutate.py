@@ -14,3 +14,8 @@ def sample(func, *args):
         return func(*args)
     return _mutate
 
+def quantize(mutate_func, point):
+    def _mutate(val):
+        val = mutate_func(val)
+        return round(val, point)
+    return _mutate

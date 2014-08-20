@@ -129,6 +129,7 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
                 global_fitness[individual] = fit
             else:
                 fitness[individual] = global_fitness[individual]
+            _logger.debug('fitness {0} for individual {1}'.format(fitness[individual], individual))
 
         result = on_generation(
             iteration, 
