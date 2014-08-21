@@ -1,3 +1,76 @@
+'''
+This module contains methods for evolving populations using both population 
+and genetic operators.
+
+The module primarily utilizes three data structures, a "population", "genepool"
+and "gene_properties".
+
+A "population" is a list of individuals in the population, where each 
+individual is hashable. An individual is a key in the "genepool".  Individuals
+may appear more than once in the population, which denotes that two or more
+individuals in the population share the exact same genes.  By default, 
+individuals are created by calling the str(..) method on a dictionary of genes.
+This can be altered by setting the gene_hash_function.
+
+A "genepool" is a dictionary between an individual in the population and their
+corresponding genes.  The genes in a genepool are also dictionaries mapping
+between an individuals gene name and gene value.  For example:
+    {
+        'individual1': {
+            'gene1': 0.5,
+            'gene2': 0.3
+        },
+        'individual2': {
+            'gene1': 0.8,
+            'gene2': 0.1
+        },
+    }
+
+The "gene_properties" provide functions to generated, mutate, and crossover 
+gene values.  In addition, they allow a general post processing function that
+is applied any time a new gene value is created.  This can be useful if you
+want to things such as quantize the values or ensure they are within a
+particular range.  The fields of gene_properties are all optional, with default 
+functionality useful for gene values which generally live in the range 
+(0.0, 1.0).
+
+"gene_properties" support the following fields:
+    "generate"  - A python generator which yields initial values for genes
+
+    "mutate"    - A function which accepts the previous gene value and produces
+    a new gene value.
+
+    "crossover" - A function which accepts two gene values and returns a tuple
+    containing two new values.  The order of the individuals which produced the
+    gene values is maintained during assignment. If you wanted to swap the gene
+    values between the two individuals, you would provide a function such as:
+    def swap(a, b):
+        return (b, a)
+
+    "process"   - A function which accepts a single argument and returns a 
+    single argument.  The "process" function is applied whenever a new gene
+    value is created through the "generate", "mutate", or "crossover" 
+    functions.
+
+Example "gene_properties":
+    def uniform_generator(min, max):
+        while True:
+            yield random.uniform(min, max)
+
+    {
+        'gene1': {
+            'generate': uniform_generator(-5.0, 5.0),
+            'mutate': lambda x: return x * random.random(),
+            'crossover': lambda x,y: return (y, x),
+            'process': lambda x: round(x, 2)
+        },
+        'gene2': {
+            ...
+        }
+        ...
+    }
+'''
+
 import logging
 import operator
 import random
@@ -17,6 +90,9 @@ gene_hash_function = str
 class Error(Exception):
     pass
 
+def _process_pass(val):
+    return val
+
 def _sample_with_replace(population, k):
     "Chooses k random elements (with replace) from a population"
     n = len(population)
@@ -29,21 +105,13 @@ def _sample_with_replace(population, k):
 
 def create(size, gene_properties, **kwargs):
     '''
-    Create a random population.
+    Create a new population.
 
     Arguments:
-        size - Number of individuals in population.
-        gene_properties - Dictionary of gene names and parameters
-            gene_properties = {
-                'gene1': {
-                    'generate': generate.sample(random.uniform, -10, 10)
-                    'crossover': crossover.swap,
-                    'mutate': mutate.gaussian(0.5)
-                },
-                'gene2': {
-                    'generator': generate.constant(7.3)
-                }
-            }
+        size            - Number of individuals in population.
+
+        gene_properties - Gene propertes for creating genes.  See Module 
+        documentation for more info on gene_properties.
     
     Return:
         Tuple of population list and gene dictionary 
@@ -54,8 +122,9 @@ def create(size, gene_properties, **kwargs):
     for i in xrange(size):
         genes = {}
         for gene, parameters in gene_properties.items():
+            processor = parameters.get('process', _process_pass)
             generator = parameters.get('generate', _generate.sample(random.random))
-            genes[gene] = next(generator)
+            genes[gene] = processor(next(generator))
         individual = gene_hash_function(genes)
         genepool[individual] = genes
         population.append(individual)
@@ -68,32 +137,51 @@ def evolve(
         fitness,
         **kwargs):
     '''
-    create a new generation of parameters
-    population - 
-    genepool - 
-    fitness - 
-    gene_properties - TODO
+    Evolve existing population and genepool.
+    
+    Arguments:
+        population      - The initial popopulation. See module level 
+        documentation for more information.
 
-    kwargs:
-    active_genes - names of parameters to vary
-    count - population size, number of individuals to make it to next generation
-    crossover_rate - percentage of configs in new generation
-                     which serve as parents to new configs
-    mutation_rate - percentage of configs in new generation
-                    which have one param modified via mutation
-    num_replaces - number of configs to replace with copies
-                       of the best config from previous generation
-    mixing_ratio - Ratio of gene mixing when crossover is performed between parents
+        genepool        - The initial genepool. See module level documentation 
+        for more information.
 
-    Notes:
-        Assuming real-valued parameters.
-        Population size - 25--100
-        Crossover rate - high for binary genes/genepool (~95%),
-                         lower for real genes/genepool (~10%)
-        Mutation rate - 1./(M*L**0.5), M is size,
-                        L is number of genes/genepool per config
+        gene_properties - The properties of genes which control mutation, and 
+        crossover. See module level documentation for more information.
+
+        fitness         - A dictionary mapping between individuals in the 
+        population and their fitness scores. A gene with a higher greater 
+        fitness score is considered more fit than one without.
+
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
+
+        count          - Population size. Number of individuals to make it to 
+        next generation.
+        [Default: original population size]
+
+        crossover_rate - Fraction of individuals in new generation which serve 
+        as parents to new individuals.
+        [Default: 0.5]
+
+        mixing_ratio   - Ratio of gene mixing when crossover is performed 
+        between parents.
+        [Default: 0.5]
+
+        mutation_rate  - Fraction of individuals in new generation which have 
+        one param modified via mutation.
+        [Default: 1.0 / (len(population) * sqrt(len(active_genes))]
+
+        num_replaces   - Number of individuals to replace with copies of the 
+        best config from previous generation.
+        [Default: 1]
     '''
-    _logger.info('computing new generation')
+    _logger.info(
+        'evolving {0} individuals with {1} different genes'.format(
+            len(population), 
+            len(genepool)))
 
     # select
     population, genepool, best_genes = select(
@@ -139,7 +227,24 @@ def select(
     fitness, 
     **kwargs):
     '''
-    select new population from existing population
+    Select a new population from existing population using tournament style 
+    selection.
+
+    Arguments:
+        population      - The initial popopulation. See module level 
+        documentation for more information.
+
+        genepool        - The initial genepool. See module level documentation 
+        for more information.
+
+        fitness         - A dictionary mapping between individuals in the 
+        population and their fitness scores. A gene with a higher greater 
+        fitness score is considered more fit than one without.
+
+    [optional]:
+        count          - Population size. Number of individuals to make it to 
+        next generation.
+        [Default: original population size]
     '''
     _logger.info('selection')
 
@@ -169,9 +274,27 @@ def mutate(
     genepool, 
     gene_properties,
     **kwargs):
-
     '''
-    add random gaussian noise to each mutated gene
+    Randomly mutate individual genes in population. 
+
+    Arguments:
+        population      - The initial popopulation. See module level 
+        documentation for more information.
+
+        genepool        - The initial genepool. See module level documentation 
+        for more information.
+
+        gene_properties - The properties of genes which control mutation, and 
+        crossover. See module level documentation for more information.
+
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
+
+        mutation_rate  - Fraction of individuals in new generation which have 
+        one param modified via mutation.
+        [Default: 1.0 / (len(population) * sqrt(len(active_genes))]
     '''
 
     size = len(population)
@@ -197,11 +320,12 @@ def mutate(
             if numpy.random.binomial(1, mutation_rate) == 1]
         num_mutations += len(mutate_genepool)
         for g in mutate_genepool:
+            processor = gene_properties[g].get('process', _process_pass)
             mutator = gene_properties[g].get(
                 'mutate', 
                 _mutate.sample(random.random))
             old_val = new_genes[g]
-            new_genes[g] = mutator(old_val)
+            new_genes[g] = processor(mutator(old_val))
             _logger.debug(
                 'mutate: %u, gene: %s, %g -> %g', 
                 i, 
@@ -222,7 +346,24 @@ def mutate(
 
 def cross(genes1, genes2, gene_properties, **kwargs):
     '''
-    mate two sets of genes using uniform crossover
+    Mate two sets of genes using uniform crossover.
+
+    Arguments:
+        genes1          - Set of parent genes.
+
+        genes2          - Set of parent genes.
+
+        gene_properties - The properties of genes which control mutation, and 
+        crossover. See module level documentation for more information.
+
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
+
+        mixing_ratio   - Ratio of gene mixing when crossover is performed 
+        between parents.
+        [Default: 0.5]
     '''
 
     mixing_ratio = kwargs.get('mixing_ratio', 0.5)
@@ -235,10 +376,11 @@ def cross(genes1, genes2, gene_properties, **kwargs):
 
     for gene in active_genes:
         if numpy.random.binomial(1, mixing_ratio) == 1:
+            processor = gene_properties[gene].get('process', _process_pass)
             crosser = gene_properties[gene].get('crossover', _crossover.swap)
             g1, g2 = crosser(genes1[gene], genes2[gene])
-            new_genes1[gene] = g1
-            new_genes2[gene] = g2
+            new_genes1[gene] = processor(g1)
+            new_genes2[gene] = processor(g2)
 
     return new_genes1, new_genes2
 
@@ -248,8 +390,31 @@ def crossover(
     gene_properties,
     **kwargs):
     '''
-    crossover_rate - percentage of configs in new generation
-                     which serve as parents to new configs
+    Randomly choose and mate individuals in population.  Replace them with 
+    their offspring.
+
+    Arguments:
+        population      - The initial popopulation. See module level 
+        documentation for more information.
+
+        genepool        - The initial genepool. See module level documentation 
+        for more information.
+
+        gene_properties - The properties of genes which control mutation, and 
+        crossover. See module level documentation for more information.
+
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
+
+        crossover_rate - Fraction of individuals in new generation which serve 
+        as parents to new individuals.
+        [Default: 0.5]
+
+        mixing_ratio   - Ratio of gene mixing when crossover is performed 
+        between parents.
+        [Default: 0.5]
     '''
 
     size = len(population)
@@ -316,7 +481,22 @@ def replace(
     best_genes,
     **kwargs):
     '''
-    randomly replace some configs with the best genes from previous generation
+    Randomly replace some individuals with the best individuals from previous 
+    generation.
+
+    Arguments:
+        population      - The initial popopulation. See module level 
+        documentation for more information.
+
+        genepool        - The initial genepool. See module level documentation 
+        for more information.
+
+        best_genes      - Genes with highest fitness score
+
+    [optional]:
+        num_replaces   - Number of individuals to replace with copies of the 
+        best config from previous generation.
+        [Default: 1]
     '''
     num_replaces = kwargs.get('num_replaces', 1)
 

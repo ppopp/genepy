@@ -17,24 +17,32 @@ def _fitness_of_population(fitness, population=None):
     return results_in_population
 
 def best(fitness, population=None):
+    '''Return most fit individual in population.'''
     results_in_population = _fitness_of_population(
         fitness, 
         population=population)
     return max(results_in_population, key=operator.itemgetter(1))[0]
 
 def worst(fitness, population=None):
+    '''Return least fit individual in population.'''
     results_in_population = _fitness_of_population(
         fitness, 
         population=population)
     return min(results_in_population, key=operator.itemgetter(1))[0]
 
 def average(fitness, population=None):
+    '''Average fitness of population'''
     results_in_population = _fitness_of_population(
         fitness, 
         population=population)
     return numpy.mean([x[1] for x in results_in_population])
 
 def best_ratio(fitness):
+    '''
+    Ratio of difference between best fitness and average fitness.
+
+    best_ratio = (best_fitness - avg_fitness) / avg_fitness
+    '''
     best_fitness = fitness[best(fitness)]
     avg_fitness = average(fitness)
     if avg_fitness != 0.0:
@@ -129,7 +137,7 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
                 global_fitness[individual] = fit
             else:
                 fitness[individual] = global_fitness[individual]
-            _logger.debug('fitness {0} for individual {1}'.format(fitness[individual], individual))
+            _logger.info('fitness {0} for individual {1}'.format(fitness[individual], individual))
 
         result = on_generation(
             iteration, 
