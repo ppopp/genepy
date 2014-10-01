@@ -99,8 +99,8 @@ functionality useful for gene values which generally live in the range
     {
         'gene1': {
             'generate': uniform_generator(-5.0, 5.0),
-            'mutate': lambda x: return x * random.random(),
-            'crossover': lambda x,y: return (y, x),
+            'mutate': lambda x: x * random.random(),
+            'crossover': lambda x,y: (y, x),
             'process': lambda x: round(x, 2)
         },
         'gene2': {
@@ -315,14 +315,39 @@ def _update_fitness_multiprocess(
 
 def search(population_size, gene_properties, get_fitness, on_generation, **kwargs):
     '''
-    processor_count
-    [Default: 1]
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
 
-    timeout
-    [Default: None]
+        count          - Population size. Number of individuals to make it to 
+        next generation.
+        [Default: original population size]
 
-    timeout_fitness
-    [Default: None]
+        crossover_rate - Fraction of individuals in new generation which serve 
+        as parents to new individuals.
+        [Default: 0.5]
+
+        mixing_ratio   - Ratio of gene mixing when crossover is performed 
+        between parents.
+        [Default: 0.5]
+
+        mutation_rate  - Fraction of individuals in new generation which have 
+        one param modified via mutation.
+        [Default: 1.0 / (len(population) * sqrt(len(active_genes))]
+
+        num_replaces   - Number of individuals to replace with copies of the 
+        best config from previous generation.
+        [Default: 1]
+
+        processor_count
+        [Default: 1]
+
+        timeout
+        [Default: None]
+
+        timeout_fitness
+        [Default: None]
     '''
 
     # get optional parameters
@@ -364,7 +389,7 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
             fitness = _get_fitness(get_fitness, genepool, global_fitness)
 
         for individual in individuals:
-            _logger.info('fitness {0} for individual {1}'.format(
+            _logger.debug('fitness {0} for individual {1}'.format(
                 fitness[individual], 
                 individual))
 
