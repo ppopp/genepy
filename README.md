@@ -8,6 +8,11 @@ Installation
 
 sudo python setup.py install
 
+Testing
+=======
+
+nosetests genepy/
+
 Usage
 =====
 
