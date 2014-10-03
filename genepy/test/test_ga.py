@@ -9,6 +9,7 @@ from genepy import ga
 from genepy import generate
 from genepy import mutate
 from genepy import crossover
+from genepy import population
 
 _logger = logging.getLogger(__name__)
 
@@ -92,6 +93,68 @@ def test_search():
     }
     target, result = _run_search_with_kwargs(kwargs)
     assert(_fitness(target, result) >= 0.99)
+
+prexist_call_count = 0
+def test_prexisting_genepool():
+    global prexist_call_count
+    prexist_call_count = 0
+    genes = {
+        'a': 5,
+        'b': 10
+    }
+
+    individuals = [population.gene_hash_function(genes)]
+    genepool = {individuals[0] : genes}
+    fitness = {individuals[0] : 10}
+
+    gene_parameters = {
+        'a': {
+            'generate': generate.sample(random.uniform, -10.0, 10.0),
+            'mutate': mutate.gaussian(0.5),
+            'crossover': crossover.sample_gaussian,
+        },
+        'b': {
+            'generate': generate.sample(random.uniform, -100.0, 100.0),
+            'mutate': mutate.gaussian(1.0),
+            'crossover': crossover.sample_gaussian,
+        }
+    }
+
+    def on_generation(
+        iterations, 
+        individuals, 
+        genepool, 
+        gene_properties, 
+        fitness, 
+        **kwargs):
+        global prexist_call_count
+        prexist_call_count += 1
+        
+        assert(len(individuals) == 1)
+        assert(len(genepool) == 1)
+        assert(genepool[individuals[0]]['a'] == 5)
+        assert(genepool[individuals[0]]['b'] == 10)
+        assert(fitness[individuals[0]] == 10)
+
+        return individuals[0]
+
+    def _fitness(x):
+        return -1
+
+    result = ga.search(
+        100,
+        gene_parameters,
+        _fitness,
+        on_generation,
+        individuals=individuals,
+        genepool=genepool,
+        fitness=fitness)
+
+    assert(result == individuals[0])
+    assert(prexist_call_count == 1)
+
+
+
 
 call_count = 0
 def test_fitness_cache():

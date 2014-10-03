@@ -313,9 +313,19 @@ def _update_fitness_multiprocess(
             pool.join()
     return fitness
 
+
 def search(population_size, gene_properties, get_fitness, on_generation, **kwargs):
     '''
     [optional]:
+        individuals    - Prexisting set of individuals to begin with.
+        [Default: None]
+
+        genepool       - Prexistings set of genes associated with genepool.
+        [Default: None]
+
+        fitness        - Prexisting fitness results of individuals.
+        [Default: None]
+
         active_genes   - Names of genes to vary. Genes in the gene pool, but 
         not in this list, will be left unchanged.
         [Default: all genes]
@@ -359,22 +369,45 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
     if (timeout is None) and processor_count > 1:
         _logger.warning('timeout not applied when using single process')
 
+    # get existing population and results
+    individuals = kwargs.get('individuals')
+    genepool = kwargs.get('genepool')
+    fitness = kwargs.get('fitness')
+
+    # need to remove these from kwargs so further function calls don't get 
+    # duplicate values for same keyword
+    if individuals:
+        del kwargs['individuals']
+    if genepool:
+        del kwargs['genepool']
+    if fitness:
+        del kwargs['fitness']
 
     # create initial generation
-    _logger.info('creating initial population')
-    individuals, genepool = population.create(
-        population_size, 
-        gene_properties, 
-        **kwargs)
+    if (individuals is None) and (genepool is None):
+        _logger.info('creating initial population')
+        individuals, genepool = population.create(
+            population_size, 
+            gene_properties, 
+            **kwargs)
+    elif (individuals is None) or (genepool is None):
+        raise Error({
+            'message': 'must supply both individuals and genepool or neither as optional parameters',
+            'supplied_inidividuals': not (individuals is None),
+            'supplied_genepool': not (genepool is None)
+        })
+
+
 
     # search until result is found
     global_fitness = {}
+    if fitness:
+        global_fitness.update(fitness)
     result = None
     iteration = 0 
     while result is None:
         fitness = None
         tests = []
-
 
         _logger.info('measuring fitness of iteration {0}'.format(iteration))
         if processor_count > 1:
