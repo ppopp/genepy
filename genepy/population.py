@@ -85,7 +85,30 @@ import generate as _generate
 _logger = logging.getLogger(__name__)
 
 
-gene_hash_function = str
+def _str_hash(o):
+    """
+    Makes a string from a dictionary, list, tuple or set to any level,     
+    that should be hashable (elements of unordered types are sorted)
+    """
+    return _inner_str_hash(o).rstrip('"\'').lstrip('"\'')
+
+
+def _inner_str_hash(o):
+    if isinstance(o, tuple):
+        return '(' + ', '.join(_inner_str_hash(e) for e in o) + ')'
+    if isinstance(o, list):
+        return '[' + ', '.join(_inner_str_hash(e) for e in o) + ']'
+    elif isinstance(o, (set, frozenset)):
+        return '{' + ', '.join(_inner_str_hash(e) for e in sorted(o)) + '}'
+    elif isinstance(o, dict):
+        return '{' + ', '.join('{0}: {1}'.format(_inner_str_hash(k),_inner_str_hash(v))
+                                for k,v in sorted(o.items())) + '}'
+    elif isinstance(o, basestring):
+        return "'" + o + "'"
+    else:
+        return str(o)
+
+gene_hash_function = _str_hash
 
 class Error(Exception):
     pass
@@ -112,19 +135,28 @@ def create(size, gene_properties, **kwargs):
 
         gene_properties - Gene propertes for creating genes.  See Module 
         documentation for more info on gene_properties.
+
+    [optional]:
+        active_genes   - Names of genes to vary. Genes in the gene pool, but 
+        not in this list, will be left unchanged.
+        [Default: all genes]
     
     Return:
         Tuple of population list and gene dictionary 
             (population, genepool) = create(...)
     '''
+    active_genes = set(kwargs.get('active_genes', gene_properties.keys()))
     genepool = {}
     population = []
     for i in xrange(size):
         genes = {}
         for gene, parameters in gene_properties.items():
-            processor = parameters.get('process', _process_pass)
-            generator = parameters.get('generate', _generate.sample(random.random))
-            genes[gene] = processor(next(generator))
+            if gene in active_genes:
+                processor = parameters.get('process', _process_pass)
+                generator = parameters.get('generate', _generate.sample(random.random))
+                genes[gene] = processor(next(generator))
+            else:
+                genes[gene] = parameters
         individual = gene_hash_function(genes)
         genepool[individual] = genes
         population.append(individual)

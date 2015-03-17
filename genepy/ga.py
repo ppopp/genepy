@@ -64,6 +64,10 @@ Higher scores are interpreted as denoting that the individual is more fit.
 
     genes - A dictionary containing gene values.
 
+If "batch" is set to "True", the fitness function should accept a dictionary
+of individuals as keys and genes as values and return a dictionary with 
+individuals as keys and fitnesses as values.
+
 The "gene_properties" provide functions to generated, mutate, and crossover 
 gene values.  In addition, they allow a general post processing function that
 is applied any time a new gene value is created.  This can be useful if you
@@ -272,6 +276,22 @@ def _get_fitness(get_fitness, genepool, global_fitness):
             fitness[individual] = global_fitness[individual]
     return fitness
 
+def _get_batch_fitness(get_fitness, genepool, global_fitness):
+    # get in batches
+    fitness = {}
+    to_run = {}
+    for individual, genes in genepool.items():
+        if not (individual in global_fitness):
+            to_run[individual] = genes
+        else:
+            fitness[individual] = global_fitness[individual]
+
+    new_fitness = get_fitness(to_run)
+    fitness.update(new_fitness)
+    global_fitness.update(new_fitness)
+
+    return fitness
+
 def _update_fitness_multiprocess(
     get_fitness, 
     genepool, 
@@ -369,6 +389,12 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
     if (timeout is None) and processor_count > 1:
         _logger.warning('timeout not applied when using single process')
 
+    do_batch = kwargs.get('batch', False)
+    _logger.debug('setting batch mode to {0}'.format(do_batch))
+
+    if (processor_count > 1) and do_batch:
+        _logger.warning('batch mode only allows single process.  ignoring processor_count')
+
     # get existing population and results
     individuals = kwargs.get('individuals')
     genepool = kwargs.get('genepool')
@@ -410,6 +436,8 @@ def search(population_size, gene_properties, get_fitness, on_generation, **kwarg
         tests = []
 
         _logger.info('measuring fitness of iteration {0}'.format(iteration))
+        if do_batch:
+            fitness = _get_batch_fitness(get_fitness, genepool, global_fitness)
         if processor_count > 1:
             fitness = _update_fitness_multiprocess(
                 get_fitness, 
